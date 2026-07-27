@@ -133,3 +133,12 @@ function normalizeCompany(value) { return String(value || "").toLowerCase().repl
 function isYes(value) { return ["yes","true","✓","checked"].includes(String(value).toLowerCase()); }
 function withLock(callback) { const lock = LockService.getScriptLock(); lock.waitLock(10000); try { callback(); SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }
 function jsonResponse(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
+
+function repairAndSetup() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  for (let day = 1; day <= 4; day++) {
+    const sheet = getDaySheet(spreadsheet, day);
+    sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 9).clearDataValidations();
+  }
+  setupSheetMetadata();
+}

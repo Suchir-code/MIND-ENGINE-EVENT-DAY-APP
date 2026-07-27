@@ -22,12 +22,14 @@ const sponsorInfo: Record<string,{tier:string;lead:string}> = {
   "Averis":{tier:"BRONZE",lead:"Tiraa"},"Bio to Business Sdn Bhd":{tier:"BRONZE",lead:"Tiraa"},"IGB Berhad":{tier:"BRONZE",lead:"Tiraa"},"Baltimore Aircoil Malaysia Sdn Bhd":{tier:"BRONZE",lead:"Tiraa"},"Chuan Sin Sdn Bhd (Spritzer)":{tier:"GOLD",lead:"Tiraa"},"Maistorage":{tier:"SILVER",lead:"Tiraa"},"GlobeOSS Sdn Bhd":{tier:"SILVER",lead:"Tiraa"}
 };
 
-type RecordRow = {day:number;company:string;student_number:string;resume_collected:boolean;feedback:string;chat_time_1:string;pic_1:string;chat_time_2:string;pic_2:string};
-const blank = (day:number,company:string):RecordRow => ({day,company,student_number:"",resume_collected:false,feedback:"",chat_time_1:"",pic_1:"",chat_time_2:"",pic_2:""});
+type RecordRow = {day:number;company:string;student_number:string;resume_collected:boolean;feedback:string;lunch_collected:boolean;tier?:string;assigned_pic?:string;latest_time?:string;latest_pic?:string};
+type InteractionLog = {timestamp:string;day:number;company:string;pic:string};
+const blank = (day:number,company:string):RecordRow => ({day,company,student_number:"",resume_collected:false,feedback:"",lunch_collected:false});
 
 export default function Home(){
   const [day,setDay]=useState(1),[query,setQuery]=useState("");
   const [rows,setRows]=useState<Record<string,RecordRow>>({});
+  const [logs,setLogs]=useState<InteractionLog[]>([]);
   const [editing,setEditing]=useState<RecordRow|null>(null);
   const [checkInPerson,setCheckInPerson]=useState("");
   const [status,setStatus]=useState<"loading"|"live"|"local"|"saving">("loading");
@@ -35,12 +37,12 @@ export default function Home(){
 
   useEffect(()=>{
     const local=JSON.parse(localStorage.getItem("mind-engine-records")||"{}");setRows(local);
-    fetch(`${SHEETS_API}?action=list`).then(async r=>{if(!r.ok)throw Error();const result=await r.json();if(!result.ok)throw Error();const mapped={...local};result.records.forEach((row:RecordRow)=>mapped[key(row.day,row.company)]=row);setRows(mapped);setStatus("live")}).catch(()=>setStatus("local"));
+    fetch(`${SHEETS_API}?action=list`).then(async r=>{if(!r.ok)throw Error();const result=await r.json();if(!result.ok)throw Error();const mapped={...local};result.records.forEach((row:RecordRow)=>mapped[key(row.day,row.company)]=row);setRows(mapped);setLogs(result.logs||[]);setStatus("live")}).catch(()=>setStatus("local"));
   },[]);
 
   const visible=useMemo(()=>companies[day].filter(c=>c.toLowerCase().includes(query.toLowerCase())),[day,query]);
   const done=companies[day].filter(c=>rows[key(day,c)]?.resume_collected).length;
-  const engaged=companies[day].filter(c=>{const r=rows[key(day,c)];return r&&(r.student_number||r.feedback||r.pic_1||r.pic_2)}).length;
+  const engaged=companies[day].filter(c=>{const r=rows[key(day,c)];return r&&(r.student_number||r.feedback||r.latest_pic)}).length;
   const progress=Math.round(done/companies[day].length*100);
 
   async function save(row:RecordRow){
@@ -49,10 +51,12 @@ export default function Home(){
   }
 
   function openRecord(row:RecordRow){setEditing(row);setCheckInPerson(sponsorInfo[row.company]?.lead||"")}
-  function checkInNow(){
+  async function checkInNow(){
     if(!editing||!checkInPerson)return;
-    const now=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:false});
-    save({...editing,chat_time_1:editing.chat_time_2||editing.chat_time_1,pic_1:editing.pic_2||editing.pic_1,chat_time_2:now,pic_2:checkInPerson});
+    const timestamp=new Date().toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+    const updated={...editing,latest_time:timestamp,latest_pic:checkInPerson};
+    setEditing(updated);setRows({...rows,[key(updated.day,updated.company)]:updated});setLogs([{timestamp,day:updated.day,company:updated.company,pic:checkInPerson},...logs]);setStatus("saving");
+    try{const res=await fetch(SHEETS_API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"checkin",day:updated.day,company:updated.company,pic:checkInPerson})});const result=await res.json();if(!res.ok||!result.ok)throw Error();setStatus("live")}catch{setStatus("local")}
   }
 
   return <main>
@@ -70,9 +74,9 @@ export default function Home(){
 
     <section className="workspace">
       <div className="toolbar"><div><span className="section-kicker">COMPANY ROSTER</span><h2>Day {day} conversations</h2><p>Tap any company card to capture an update.</p></div><label className="search"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search companies" aria-label="Search companies"/>{query&&<button onClick={()=>setQuery("")} type="button" aria-label="Clear search">×</button>}</label></div>
-      <section className="grid">{visible.map((company,i)=>{const row=rows[key(day,company)]||blank(day,company);const touched=!!(row.student_number||row.feedback||row.pic_1||row.pic_2);const sponsor=sponsorInfo[company];return <article key={company} onClick={()=>openRecord(row)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openRecord(row)}}}>
+      <section className="grid">{visible.map((company,i)=>{const row=rows[key(day,company)]||blank(day,company);const touched=!!(row.student_number||row.feedback||row.latest_pic);const sponsor=sponsorInfo[company];return <article key={company} onClick={()=>openRecord(row)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openRecord(row)}}}>
         <div className="card-top"><span className="number">{String(i+1).padStart(2,"0")}</span><span className={`tier ${(sponsor?.tier||"").toLowerCase().replaceAll(" ","-")}`}>{sponsor?.tier||"PARTNER"}</span></div>
-        <h3>{company}</h3><div className="lead-line"><span>Lead PIC</span><b>{sponsor?.lead||"Unassigned"}</b></div><div className="card-meta"><span><small>LATEST PIC</small><b>{row.pic_2||row.pic_1||"No check-in"}</b></span><span><small>LATEST TIME</small><b>{row.chat_time_2||row.chat_time_1||"—"}</b></span><span><small>STATUS</small><b>{row.resume_collected?"Resume ✓":touched?"Active":"New"}</b></span></div><button className="edit" type="button">Open & check in <span>↗</span></button>
+        <h3>{company}</h3><div className="lead-line"><span>Assigned PIC</span><b>{sponsor?.lead||"Unassigned"}</b></div><div className="card-meta"><span><small>RECENT CHECK-IN</small><b>{row.latest_pic||"No check-in"}</b></span><span><small>TIME</small><b>{row.latest_time||"—"}</b></span><span><small>LUNCH</small><b>{row.lunch_collected?"Collected ✓":"Pending"}</b></span></div><button className="edit" type="button">Open & check in <span>↗</span></button>
       </article>})}</section>
       {visible.length===0&&<div className="empty"><span>⌕</span><h3>No companies found</h3><p>Try a shorter search term.</p><button onClick={()=>setQuery("")}>Clear search</button></div>}
     </section>
@@ -81,13 +85,14 @@ export default function Home(){
       <div className="drawer-head"><div><small>DAY {editing.day} · COMPANY RECORD</small><h2>{editing.company}</h2></div><button type="button" className="close" onClick={()=>setEditing(null)} aria-label="Close form">×</button></div>
       <div className="company-brief"><span className={`tier ${(sponsorInfo[editing.company]?.tier||"").toLowerCase().replaceAll(" ","-")}`}>{sponsorInfo[editing.company]?.tier||"PARTNER"}</span><p>Assigned lead <b>{sponsorInfo[editing.company]?.lead||"Unassigned"}</b></p></div>
       <div className="quick-checkin"><div><small>QUICK CHECK-IN</small><b>Who spoke to them now?</b></div><select value={checkInPerson} onChange={e=>setCheckInPerson(e.target.value)} aria-label="PIC checking in"><option value="">Select PIC</option>{PIC_NAMES.map(name=><option key={name}>{name}</option>)}</select><button type="button" onClick={checkInNow} disabled={!checkInPerson}>Check in now</button></div>
+      <div className="recent-interaction"><span>Most recent interaction</span><strong>{editing.latest_pic||"No one has checked in yet"}</strong><small>{editing.latest_time||"Waiting for the first conversation"}</small></div>
       <div className="form-grid">
         <label><span>Student number</span><input inputMode="numeric" value={editing.student_number} onChange={e=>setEditing({...editing,student_number:e.target.value})} placeholder="e.g. 12"/></label>
         <label className="check"><input type="checkbox" checked={editing.resume_collected} onChange={e=>setEditing({...editing,resume_collected:e.target.checked})}/><span><b>Resume collected</b><small>Mark this company complete</small></span></label>
+        <label className="check"><input type="checkbox" checked={editing.lunch_collected} onChange={e=>setEditing({...editing,lunch_collected:e.target.checked})}/><span><b>Lunch collected</b><small>Tick when the company receives lunch</small></span></label>
         <label className="full"><span>Feedback & notes</span><textarea rows={5} value={editing.feedback} onChange={e=>setEditing({...editing,feedback:e.target.value})} placeholder={"1. Key feedback\n2. Student interests\n3. Follow-up notes"}/></label>
-        <div className="round-label full"><span>01</span><b>Previous conversation</b></div><label><span>Chat time</span><input type="time" value={editing.chat_time_1} onChange={e=>setEditing({...editing,chat_time_1:e.target.value})}/></label><label><span>PIC</span><select value={editing.pic_1} onChange={e=>setEditing({...editing,pic_1:e.target.value})}><option value="">Select PIC</option>{PIC_NAMES.map(name=><option key={name}>{name}</option>)}</select></label>
-        <div className="round-label full"><span>02</span><b>Latest conversation</b></div><label><span>Chat time</span><input type="time" value={editing.chat_time_2} onChange={e=>setEditing({...editing,chat_time_2:e.target.value})}/></label><label><span>PIC</span><select value={editing.pic_2} onChange={e=>setEditing({...editing,pic_2:e.target.value})}><option value="">Select PIC</option>{PIC_NAMES.map(name=><option key={name}>{name}</option>)}</select></label>
       </div><div className="actions"><button type="button" onClick={()=>setEditing(null)}>Cancel</button><button type="submit"><span>Save update</span><span>→</span></button></div>
+      <section className="interaction-history"><div><small>INTERACTION HISTORY</small><h3>All check-ins</h3></div>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).length?<ul>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).map((log,index)=><li key={`${log.timestamp}-${index}`}><span>{log.pic.slice(0,1)}</span><b>{log.pic}</b><time>{log.timestamp}</time></li>)}</ul>:<p>No interactions logged yet.</p>}</section>
     </form></div>}
     <footer><span>MIND ENGINE EXPO 2026</span><span>Built for the team · Malaysia</span></footer>
   </main>

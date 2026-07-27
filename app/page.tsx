@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const SUPABASE_URL = "https://rzzppxusfttahkazptcr.supabase.co";
-const SUPABASE_KEY = "sb_publishable_UBgmVZ-2TsK-u2CnKGU7VA_BE65_za7";
+const SHEETS_API = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_WEB_APP_URL || "";
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/1qJZQIpmhnWsTNRzKKJkHq0sTDlAxtumq-bfviREMCdE/edit?gid=1945222951#gid=1945222951";
 
 const companies: Record<number, string[]> = {
@@ -31,15 +30,16 @@ export default function Home() {
   const [status, setStatus] = useState<"loading"|"live"|"local"|"saving">("loading");
 
   const key = (d: number, company: string) => `${d}::${company}`;
-  const apiHeaders = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" };
-
   useEffect(() => {
     const local = JSON.parse(localStorage.getItem("mind-engine-records") || "{}");
     setRows(local);
-    fetch(`${SUPABASE_URL}/rest/v1/mind_engine_records?select=*`, { headers: apiHeaders })
+    if (!SHEETS_API) { setStatus("local"); return; }
+    fetch(`${SHEETS_API}?action=list`)
       .then(async r => {
         if (!r.ok) throw new Error("not ready");
-        const data: RecordRow[] = await r.json();
+        const result = await r.json();
+        if (!result.ok) throw new Error(result.error || "not ready");
+        const data: RecordRow[] = result.records;
         const mapped = { ...local };
         data.forEach(row => mapped[key(row.day, row.company)] = row);
         setRows(mapped); setStatus("live");
@@ -55,10 +55,14 @@ export default function Home() {
     setRows(updated); localStorage.setItem("mind-engine-records", JSON.stringify(updated)); setEditing(null);
     setStatus("saving");
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/mind_engine_records?on_conflict=day,company`, {
-        method: "POST", headers: { ...apiHeaders, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(row),
+      if (!SHEETS_API) throw new Error("not configured");
+      const res = await fetch(SHEETS_API, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "upsert", record: row }),
       });
-      if (!res.ok) throw new Error("save failed");
+      const result = await res.json();
+      if (!res.ok || !result.ok) throw new Error(result.error || "save failed");
       setStatus("live");
     } catch { setStatus("local"); }
   }

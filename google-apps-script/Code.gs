@@ -121,13 +121,19 @@ function ensureHeaders(sheet) {
   }
   sheet.getRange(1, 1, 1, 9).setValues([HEADERS]).setFontWeight("bold").setBackground("#1e4b3a").setFontColor("#ffffff");
   sheet.setFrozenRows(1);
+  const populatedRows = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues().flat() : [];
+  populatedRows.forEach((company, index) => {
+    if (!String(company).trim()) sheet.getRange(index + 2, 2, 1, 8).clearContent().clearDataValidations();
+  });
+  const companyCount = populatedRows.filter(company => String(company).trim()).length;
+  if (!companyCount) return;
   const picValidation = SpreadsheetApp.newDataValidation().requireValueInList(PIC_NAMES, true).setAllowInvalid(false).build();
-  sheet.getRange(2, 7, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(picValidation);
+  sheet.getRange(2, 7, companyCount, 1).setDataValidation(picValidation);
   const checkValidation = SpreadsheetApp.newDataValidation().requireCheckbox("Yes", "No").build();
-  sheet.getRange(2, 3, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(checkValidation);
-  sheet.getRange(2, 5, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(checkValidation);
-  if (sheet.getLastRow() > 1) {
-    const names = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues().flat();
+  sheet.getRange(2, 3, companyCount, 1).setDataValidation(checkValidation);
+  sheet.getRange(2, 5, companyCount, 1).setDataValidation(checkValidation);
+  if (companyCount > 0) {
+    const names = sheet.getRange(2, 1, companyCount, 1).getDisplayValues().flat();
     const metadata = names.map(name => { const sponsor = findSponsor(name); return sponsor ? [sponsor[1], sponsor[2]] : ["", ""]; });
     sheet.getRange(2, 6, metadata.length, 2).setValues(metadata);
   }
@@ -153,7 +159,13 @@ function findCompanyRow(sheet, company) {
   const index = names.findIndex(name => normalizeCompany(name) === normalizeCompany(company));
   return index >= 0 ? index + 2 : sheet.getLastRow() + 1;
 }
-function findSponsor(company) { return SPONSORS.find(item => normalizeCompany(item[0]) === normalizeCompany(company)); }
+function findSponsor(company) {
+  const target = normalizeCompany(company);
+  return SPONSORS.find(item => {
+    const candidate = normalizeCompany(item[0]);
+    return candidate === target || candidate.startsWith(target) || target.startsWith(candidate);
+  });
+}
 function normalizeCompany(value) { return String(value || "").toLowerCase().replace(/\b(sdn|bhd|berhad)\b/g, "").replace(/[^a-z0-9]/g, ""); }
 function isYes(value) { return ["yes","true","✓","checked"].includes(String(value).toLowerCase()); }
 function withLock(callback) { const lock = LockService.getScriptLock(); lock.waitLock(10000); try { callback(); SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }

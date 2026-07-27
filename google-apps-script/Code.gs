@@ -1,6 +1,6 @@
 const SPREADSHEET_ID = "1qJZQIpmhnWsTNRzKKJkHq0sTDlAxtumq-bfviREMCdE";
 const HEADERS = ["Company Name", "Student Number", "Resume Collected", "Feedback", "Lunch Collected", "Sponsor Tier", "Assigned PIC", "Latest Interaction", "Latest Check-in PIC"];
-const LOG_HEADERS = ["Timestamp", "Day", "Company Name", "PIC"];
+const LOG_HEADERS = ["Timestamp", "Day", "Company Name", "PIC", "Log ID"];
 const PIC_NAMES = ["Suchir", "Daphne", "Jet Shen", "Thenmolly", "Tiraa", "Pui Yeng", "Jin Hong", "Joash", "Brandon"];
 const SPONSORS = [
   ["Nestle Manufacturing Malaysia","BRONZE","Daphne"],["bp","GOLD","Daphne"],["Inchz IoT Sdn Bhd","GOLD","Daphne"],["AMD","GOLD","Daphne"],["Gamuda Berhad","SILVER","Daphne"],["Shortcut Asia","SILVER","Daphne"],["Nokia Services and Networks Malaysia Sdn Bhd","SILVER","Daphne"],
@@ -31,6 +31,7 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents || "{}");
     if (payload.action === "upsert" && payload.record) upsertRecord(payload.record);
     else if (payload.action === "checkin" && payload.day && payload.company && payload.pic) addCheckIn(payload);
+    else if (payload.action === "undo_checkin" && payload.log_id) undoCheckIn(payload.log_id);
     else throw new Error("Invalid request");
     return jsonResponse({ ok: true });
   } catch (error) {
@@ -51,7 +52,7 @@ function listData() {
     });
   }
   const logSheet = ensureLogSheet(spreadsheet);
-  const logs = logSheet.getLastRow() < 2 ? [] : logSheet.getRange(2, 1, logSheet.getLastRow() - 1, 4).getDisplayValues().map(row => ({timestamp:row[0], day:Number(row[1]), company:row[2], pic:row[3]})).reverse();
+  const logs = logSheet.getLastRow() < 2 ? [] : logSheet.getRange(2, 1, logSheet.getLastRow() - 1, 5).getDisplayValues().map(row => ({timestamp:row[0], day:Number(row[1]), company:row[2], pic:row[3], log_id:row[4]})).reverse();
   return { records, logs };
 }
 
@@ -82,8 +83,27 @@ function addCheckIn(payload) {
     sheet.getRange(rowNumber, 8, 1, 2).setValues([[timestamp, payload.pic]]);
     sheet.getRange(rowNumber, 8).setNumberFormat("dd MMM yyyy, HH:mm");
     const logSheet = ensureLogSheet(spreadsheet);
-    logSheet.appendRow([timestamp, Number(payload.day), payload.company, payload.pic]);
+    logSheet.appendRow([timestamp, Number(payload.day), payload.company, payload.pic, Utilities.getUuid()]);
     logSheet.getRange(logSheet.getLastRow(), 1).setNumberFormat("dd MMM yyyy, HH:mm");
+  });
+}
+
+function undoCheckIn(logId) {
+  withLock(() => {
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const logSheet = ensureLogSheet(spreadsheet);
+    if (logSheet.getLastRow() < 2) throw new Error("Interaction log not found");
+    const values = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, 5).getValues();
+    const index = values.findIndex(row => String(row[4]) === String(logId));
+    if (index < 0) throw new Error("Interaction log not found");
+    const removed = values[index];
+    logSheet.deleteRow(index + 2);
+    const remaining = values.filter((row, rowIndex) => rowIndex !== index && Number(row[1]) === Number(removed[1]) && normalizeCompany(row[2]) === normalizeCompany(removed[2]));
+    remaining.sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
+    const daySheet = getDaySheet(spreadsheet, Number(removed[1]));
+    const companyRow = findCompanyRow(daySheet, removed[2]);
+    daySheet.getRange(companyRow, 8, 1, 2).setValues([[remaining[0] ? remaining[0][0] : "", remaining[0] ? remaining[0][3] : ""]]);
+    daySheet.getRange(companyRow, 8).setNumberFormat("dd MMM yyyy, HH:mm");
   });
 }
 
@@ -115,7 +135,12 @@ function ensureHeaders(sheet) {
 
 function ensureLogSheet(spreadsheet) {
   const sheet = spreadsheet.getSheetByName("Interaction Logs") || spreadsheet.insertSheet("Interaction Logs");
-  sheet.getRange(1, 1, 1, 4).setValues([LOG_HEADERS]).setFontWeight("bold").setBackground("#1e4b3a").setFontColor("#ffffff");
+  sheet.getRange(1, 1, 1, 5).setValues([LOG_HEADERS]).setFontWeight("bold").setBackground("#1e4b3a").setFontColor("#ffffff");
+  if (sheet.getLastRow() > 1) {
+    const idRange = sheet.getRange(2, 5, sheet.getLastRow() - 1, 1);
+    const ids = idRange.getDisplayValues().map(row => [row[0] || Utilities.getUuid()]);
+    idRange.setValues(ids);
+  }
   sheet.setFrozenRows(1);
   return sheet;
 }

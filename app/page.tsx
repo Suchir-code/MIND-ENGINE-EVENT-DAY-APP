@@ -23,7 +23,7 @@ const sponsorInfo: Record<string,{tier:string;lead:string}> = {
 };
 
 type RecordRow = {day:number;company:string;student_number:string;resume_collected:boolean;feedback:string;lunch_collected:boolean;tier?:string;assigned_pic?:string;latest_time?:string;latest_pic?:string};
-type InteractionLog = {timestamp:string;day:number;company:string;pic:string};
+type InteractionLog = {timestamp:string;day:number;company:string;pic:string;log_id?:string};
 const blank = (day:number,company:string):RecordRow => ({day,company,student_number:"",resume_collected:false,feedback:"",lunch_collected:false});
 
 export default function Home(){
@@ -50,13 +50,28 @@ export default function Home(){
     try{const res=await fetch(SHEETS_API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"upsert",record:row})});const result=await res.json();if(!res.ok||!result.ok)throw Error();setStatus("live")}catch{setStatus("local")}
   }
 
+  async function refreshFromSheet(){
+    const res=await fetch(`${SHEETS_API}?action=list&ts=${Date.now()}`);
+    const result=await res.json();
+    if(!res.ok||!result.ok)throw Error();
+    const mapped={...rows};result.records.forEach((row:RecordRow)=>mapped[key(row.day,row.company)]=row);
+    setRows(mapped);setLogs(result.logs||[]);
+    return mapped;
+  }
+
   function openRecord(row:RecordRow){setEditing(row);setCheckInPerson(sponsorInfo[row.company]?.lead||"")}
   async function checkInNow(){
     if(!editing||!checkInPerson)return;
     const timestamp=new Date().toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
     const updated={...editing,latest_time:timestamp,latest_pic:checkInPerson};
     setEditing(updated);setRows({...rows,[key(updated.day,updated.company)]:updated});setLogs([{timestamp,day:updated.day,company:updated.company,pic:checkInPerson},...logs]);setStatus("saving");
-    try{const res=await fetch(SHEETS_API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"checkin",day:updated.day,company:updated.company,pic:checkInPerson})});const result=await res.json();if(!res.ok||!result.ok)throw Error();setStatus("live")}catch{setStatus("local")}
+    try{const res=await fetch(SHEETS_API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"checkin",day:updated.day,company:updated.company,pic:checkInPerson})});const result=await res.json();if(!res.ok||!result.ok)throw Error();await refreshFromSheet();setStatus("live")}catch{setStatus("local")}
+  }
+
+  async function undoLog(log:InteractionLog){
+    if(!log.log_id)return;
+    setStatus("saving");
+    try{const res=await fetch(SHEETS_API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"undo_checkin",log_id:log.log_id})});const result=await res.json();if(!res.ok||!result.ok)throw Error();const refreshed=await refreshFromSheet();setEditing(current=>current?(refreshed[key(current.day,current.company)]||current):current);setStatus("live")}catch{setStatus("local")}
   }
 
   return <main>
@@ -92,7 +107,7 @@ export default function Home(){
         <label className="check"><input type="checkbox" checked={editing.lunch_collected} onChange={e=>setEditing({...editing,lunch_collected:e.target.checked})}/><span><b>Lunch collected</b><small>Tick when the company receives lunch</small></span></label>
         <label className="full"><span>Feedback & notes</span><textarea rows={5} value={editing.feedback} onChange={e=>setEditing({...editing,feedback:e.target.value})} placeholder={"1. Key feedback\n2. Student interests\n3. Follow-up notes"}/></label>
       </div><div className="actions"><button type="button" onClick={()=>setEditing(null)}>Cancel</button><button type="submit"><span>Save update</span><span>→</span></button></div>
-      <section className="interaction-history"><div><small>INTERACTION HISTORY</small><h3>All check-ins</h3></div>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).length?<ul>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).map((log,index)=><li key={`${log.timestamp}-${index}`}><span>{log.pic.slice(0,1)}</span><b>{log.pic}</b><time>{log.timestamp}</time></li>)}</ul>:<p>No interactions logged yet.</p>}</section>
+      <section className="interaction-history"><div><small>INTERACTION HISTORY</small><h3>All check-ins</h3></div>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).length?<ul>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).map((log,index)=><li key={log.log_id||`${log.timestamp}-${index}`}><span>{log.pic.slice(0,1)}</span><b>{log.pic}</b><time>{log.timestamp}</time>{log.log_id&&<button type="button" onClick={()=>undoLog(log)} aria-label={`Undo ${log.pic} check-in`}>Undo</button>}</li>)}</ul>:<p>No interactions logged yet.</p>}</section>
     </form></div>}
     <footer><span>MIND ENGINE EXPO 2026</span><span>Built for the team · Malaysia</span></footer>
   </main>

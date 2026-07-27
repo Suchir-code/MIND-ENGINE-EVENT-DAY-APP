@@ -9,6 +9,7 @@ const HEADERS = [
   "Chat Time 2",
   "PIC"
 ];
+const PIC_NAMES = ["Suchir", "Daphne", "Jet Shen", "Thenmolly", "Tiraa", "Pui Yeng", "Jin Hong", "Joash", "Brandon"];
 
 function doGet(e) {
   try {
@@ -105,6 +106,12 @@ function ensureHeaders(sheet) {
     sheet.getRange(1, 1, 1, 8).setFontWeight("bold").setBackground("#1e4b3a").setFontColor("#ffffff");
     sheet.setFrozenRows(1);
   }
+  const validation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(PIC_NAMES, true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, 6, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(validation);
+  sheet.getRange(2, 8, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(validation);
 }
 
 function jsonResponse(payload) {

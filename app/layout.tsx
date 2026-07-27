@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://mind-engine-event-day-app.vercel.app"),
   title: "MIND ENGINE Expo 2026 | Team Tracker",
   description: "Live company engagement tracker for the MIND ENGINE Expo 2026 team.",
   openGraph: {

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const SHEETS_API = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_WEB_APP_URL || "";
+const SHEETS_API = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_WEB_APP_URL
+  || "https://script.google.com/macros/s/AKfycbzMD5srAVZhWoamjxSzi-35sjSK3-jtv8u2b_0h752rKPes0ty7fddxL2nJFKfQUXjQ/exec";
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/1qJZQIpmhnWsTNRzKKJkHq0sTDlAxtumq-bfviREMCdE/edit?gid=1945222951#gid=1945222951";
 
 const companies: Record<number, string[]> = {

@@ -20,12 +20,11 @@ The website is prepared to use this spreadsheet:
 4. Set **Who has access** to **Anyone**.
 5. Select **Deploy**, approve access, and copy the `/exec` URL.
 
-## 3. Connect it in Vercel
+## 3. Vercel
 
-Add this environment variable to the Vercel project:
+The deployed `/exec` URL is already configured as the project's default, so no
+extra Vercel setting is required. You can optionally override it later with the
+`NEXT_PUBLIC_GOOGLE_SHEETS_WEB_APP_URL` environment variable.
 
-`NEXT_PUBLIC_GOOGLE_SHEETS_WEB_APP_URL`
-
-Use the copied `/exec` URL as its value, then redeploy the website.
-
-The site will then load existing rows from the Day 1–4 tabs and write every saved update back to the correct company row.
+The site loads existing rows from the Day 1–4 tabs and writes every saved update
+back to the correct company row.

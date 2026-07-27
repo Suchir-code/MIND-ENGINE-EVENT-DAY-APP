@@ -90,6 +90,7 @@ function addCheckIn(payload) {
 function ensureHeaders(sheet) {
   const oldHeaders = sheet.getRange(1, 1, 1, Math.min(sheet.getMaxColumns(), 10)).getDisplayValues()[0];
   const isOld = oldHeaders[4] === "Chat Time 1" && oldHeaders[5] === "PIC";
+  sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 9).clearDataValidations();
   if (isOld && sheet.getLastRow() > 1) {
     const oldRows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getDisplayValues();
     const migrated = oldRows.map(row => {

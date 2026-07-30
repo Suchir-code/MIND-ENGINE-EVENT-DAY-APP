@@ -1,5 +1,5 @@
 const SPREADSHEET_ID = "1qJZQIpmhnWsTNRzKKJkHq0sTDlAxtumq-bfviREMCdE";
-const HEADERS = ["Company Name", "Student Number", "Resume Collected", "Feedback", "Lunch Collected", "Sponsor Tier", "Assigned PIC", "Latest Interaction", "Latest Check-in PIC"];
+const HEADERS = ["Company Name", "Student Number", "Resume Collected", "Feedback", "Lunch Collected", "Lanyard Returned", "Sponsor Tier", "Assigned PIC", "Latest Interaction", "Latest Check-in PIC"];
 const LOG_HEADERS = ["Timestamp", "Day", "Company Name", "PIC", "Log ID"];
 const PIC_NAMES = ["Suchir", "Daphne", "Jet Shen", "Thenmolly", "Tiraa", "Pui Yeng", "Jin Hong", "Joash", "Brandon"];
 const SPONSORS = [
@@ -46,9 +46,9 @@ function listData() {
     const sheet = getDaySheet(spreadsheet, day);
     ensureHeaders(sheet);
     if (sheet.getLastRow() < 2) continue;
-    sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getDisplayValues().forEach(row => {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getDisplayValues().forEach(row => {
       if (!row[0]) return;
-      records.push({day, company:row[0], student_number:row[1], resume_collected:isYes(row[2]), feedback:row[3], lunch_collected:isYes(row[4]), tier:row[5], assigned_pic:row[6], latest_time:row[7], latest_pic:row[8]});
+      records.push({day, company:row[0], student_number:row[1], resume_collected:isYes(row[2]), feedback:row[3], lunch_collected:isYes(row[4]), lanyard_returned:isYes(row[5]), tier:row[6], assigned_pic:row[7], latest_time:row[8], latest_pic:row[9]});
     });
   }
   const logSheet = ensureLogSheet(spreadsheet);
@@ -63,12 +63,12 @@ function upsertRecord(record) {
     ensureHeaders(sheet);
     const rowNumber = findCompanyRow(sheet, record.company);
     const sponsor = findSponsor(record.company);
-    const existing = sheet.getRange(rowNumber, 1, 1, 9).getDisplayValues()[0];
-    sheet.getRange(rowNumber, 1, 1, 9).setValues([[
+    const existing = sheet.getRange(rowNumber, 1, 1, 10).getDisplayValues()[0];
+    sheet.getRange(rowNumber, 1, 1, 10).setValues([[
       record.company, record.student_number || "", record.resume_collected ? "Yes" : "No",
-      record.feedback || "", record.lunch_collected ? "Yes" : "No",
-      sponsor ? sponsor[1] : existing[5], sponsor ? sponsor[2] : (record.assigned_pic || existing[6]),
-      existing[7], existing[8]
+      record.feedback || "", record.lunch_collected ? "Yes" : "No", record.lanyard_returned ? "Yes" : "No",
+      sponsor ? sponsor[1] : existing[6], sponsor ? sponsor[2] : (record.assigned_pic || existing[7]),
+      existing[8], existing[9]
     ]]);
   });
 }
@@ -80,8 +80,8 @@ function addCheckIn(payload) {
     ensureHeaders(sheet);
     const rowNumber = findCompanyRow(sheet, payload.company);
     const timestamp = new Date();
-    sheet.getRange(rowNumber, 8, 1, 2).setValues([[timestamp, payload.pic]]);
-    sheet.getRange(rowNumber, 8).setNumberFormat("dd MMM yyyy, HH:mm");
+    sheet.getRange(rowNumber, 9, 1, 2).setValues([[timestamp, payload.pic]]);
+    sheet.getRange(rowNumber, 9).setNumberFormat("dd MMM yyyy, HH:mm");
     const logSheet = ensureLogSheet(spreadsheet);
     logSheet.appendRow([timestamp, Number(payload.day), payload.company, payload.pic, Utilities.getUuid()]);
     logSheet.getRange(logSheet.getLastRow(), 1).setNumberFormat("dd MMM yyyy, HH:mm");
@@ -102,40 +102,46 @@ function undoCheckIn(logId) {
     remaining.sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
     const daySheet = getDaySheet(spreadsheet, Number(removed[1]));
     const companyRow = findCompanyRow(daySheet, removed[2]);
-    daySheet.getRange(companyRow, 8, 1, 2).setValues([[remaining[0] ? remaining[0][0] : "", remaining[0] ? remaining[0][3] : ""]]);
-    daySheet.getRange(companyRow, 8).setNumberFormat("dd MMM yyyy, HH:mm");
+    daySheet.getRange(companyRow, 9, 1, 2).setValues([[remaining[0] ? remaining[0][0] : "", remaining[0] ? remaining[0][3] : ""]]);
+    daySheet.getRange(companyRow, 9).setNumberFormat("dd MMM yyyy, HH:mm");
   });
 }
 
 function ensureHeaders(sheet) {
   const oldHeaders = sheet.getRange(1, 1, 1, Math.min(sheet.getMaxColumns(), 10)).getDisplayValues()[0];
   const isOld = oldHeaders[4] === "Chat Time 1" && oldHeaders[5] === "PIC";
-  sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 9).clearDataValidations();
+  const isNineColumnVersion = oldHeaders[4] === "Lunch Collected" && oldHeaders[5] === "Sponsor Tier";
+  sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 10).clearDataValidations();
   if (isOld && sheet.getLastRow() > 1) {
     const oldRows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getDisplayValues();
     const migrated = oldRows.map(row => {
       const sponsor = findSponsor(row[0]);
-      return [row[0],row[1],row[2],row[3],"",sponsor ? sponsor[1] : row[8],sponsor ? sponsor[2] : row[9],row[6] || row[4],row[7] || row[5]];
+      return [row[0],row[1],row[2],row[3],"","",sponsor ? sponsor[1] : row[8],sponsor ? sponsor[2] : row[9],row[6] || row[4],row[7] || row[5]];
     });
-    sheet.getRange(2, 1, migrated.length, 9).setValues(migrated);
+    sheet.getRange(2, 1, migrated.length, 10).setValues(migrated);
+  } else if (isNineColumnVersion && sheet.getLastRow() > 1) {
+    const currentRows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getDisplayValues();
+    const migrated = currentRows.map(row => [row[0],row[1],row[2],row[3],row[4],"",row[5],row[6],row[7],row[8]]);
+    sheet.getRange(2, 1, migrated.length, 10).setValues(migrated);
   }
-  sheet.getRange(1, 1, 1, 9).setValues([HEADERS]).setFontWeight("bold").setBackground("#1e4b3a").setFontColor("#ffffff");
+  sheet.getRange(1, 1, 1, 10).setValues([HEADERS]).setFontWeight("bold").setBackground("#1e4b3a").setFontColor("#ffffff");
   sheet.setFrozenRows(1);
   const populatedRows = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues().flat() : [];
   populatedRows.forEach((company, index) => {
-    if (!String(company).trim()) sheet.getRange(index + 2, 2, 1, 8).clearContent().clearDataValidations();
+    if (!String(company).trim()) sheet.getRange(index + 2, 2, 1, 9).clearContent().clearDataValidations();
   });
   const companyCount = populatedRows.filter(company => String(company).trim()).length;
   if (!companyCount) return;
   const picValidation = SpreadsheetApp.newDataValidation().requireValueInList(PIC_NAMES, true).setAllowInvalid(false).build();
-  sheet.getRange(2, 7, companyCount, 1).setDataValidation(picValidation);
+  sheet.getRange(2, 8, companyCount, 1).setDataValidation(picValidation);
   const checkValidation = SpreadsheetApp.newDataValidation().requireCheckbox("Yes", "No").build();
   sheet.getRange(2, 3, companyCount, 1).setDataValidation(checkValidation);
   sheet.getRange(2, 5, companyCount, 1).setDataValidation(checkValidation);
+  sheet.getRange(2, 6, companyCount, 1).setDataValidation(checkValidation);
   if (companyCount > 0) {
     const names = sheet.getRange(2, 1, companyCount, 1).getDisplayValues().flat();
     const metadata = names.map(name => { const sponsor = findSponsor(name); return sponsor ? [sponsor[1], sponsor[2]] : ["", ""]; });
-    sheet.getRange(2, 6, metadata.length, 2).setValues(metadata);
+    sheet.getRange(2, 7, metadata.length, 2).setValues(metadata);
   }
 }
 
@@ -175,7 +181,7 @@ function repairAndSetup() {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
   for (let day = 1; day <= 4; day++) {
     const sheet = getDaySheet(spreadsheet, day);
-    sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 9).clearDataValidations();
+    sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 10).clearDataValidations();
   }
   setupSheetMetadata();
 }

@@ -22,9 +22,9 @@ const sponsorInfo: Record<string,{tier:string;lead:string}> = {
   "Averis":{tier:"BRONZE",lead:"Tiraa"},"Bio to Business Sdn Bhd":{tier:"BRONZE",lead:"Tiraa"},"IGB Berhad":{tier:"BRONZE",lead:"Tiraa"},"Baltimore Aircoil Malaysia Sdn Bhd":{tier:"BRONZE",lead:"Tiraa"},"Chuan Sin Sdn Bhd (Spritzer)":{tier:"GOLD",lead:"Tiraa"},"Maistorage":{tier:"SILVER",lead:"Tiraa"},"GlobeOSS Sdn Bhd":{tier:"SILVER",lead:"Tiraa"}
 };
 
-type RecordRow = {day:number;company:string;student_number:string;resume_collected:boolean;feedback:string;lunch_collected:boolean;tier?:string;assigned_pic?:string;latest_time?:string;latest_pic?:string};
+type RecordRow = {day:number;company:string;student_number:string;resume_collected:boolean;feedback:string;lunch_collected:boolean;lanyard_returned:boolean;tier?:string;assigned_pic?:string;latest_time?:string;latest_pic?:string};
 type InteractionLog = {timestamp:string;day:number;company:string;pic:string;log_id?:string};
-const blank = (day:number,company:string):RecordRow => ({day,company,student_number:"",resume_collected:false,feedback:"",lunch_collected:false});
+const blank = (day:number,company:string):RecordRow => ({day,company,student_number:"",resume_collected:false,feedback:"",lunch_collected:false,lanyard_returned:false});
 
 export default function Home(){
   const [day,setDay]=useState(1),[query,setQuery]=useState("");
@@ -91,7 +91,7 @@ export default function Home(){
       <div className="toolbar"><div><span className="section-kicker">COMPANY ROSTER</span><h2>Day {day} conversations</h2><p>Tap any company card to capture an update.</p></div><label className="search"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search companies" aria-label="Search companies"/>{query&&<button onClick={()=>setQuery("")} type="button" aria-label="Clear search">×</button>}</label></div>
       <section className="grid">{visible.map((company,i)=>{const row=rows[key(day,company)]||blank(day,company);const touched=!!(row.student_number||row.feedback||row.latest_pic);const sponsor=sponsorInfo[company];return <article key={company} onClick={()=>openRecord(row)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openRecord(row)}}}>
         <div className="card-top"><span className="number">{String(i+1).padStart(2,"0")}</span><span className={`tier ${(sponsor?.tier||"").toLowerCase().replaceAll(" ","-")}`}>{sponsor?.tier||"PARTNER"}</span></div>
-        <h3>{company}</h3><div className="lead-line"><span>Assigned PIC</span><b>{sponsor?.lead||"Unassigned"}</b></div><div className="card-meta"><span><small>RECENT CHECK-IN</small><b>{row.latest_pic||"No check-in"}</b></span><span><small>TIME</small><b>{row.latest_time||"—"}</b></span><span><small>LUNCH</small><b>{row.lunch_collected?"Collected ✓":"Pending"}</b></span></div><button className="edit" type="button">Open & check in <span>↗</span></button>
+        <h3>{company}</h3><div className="lead-line"><span>Assigned PIC</span><b>{sponsor?.lead||"Unassigned"}</b></div><div className="card-meta"><span><small>RECENT CHECK-IN</small><b>{row.latest_pic||"No check-in"}</b></span><span><small>TIME</small><b>{row.latest_time||"—"}</b></span><span><small>LUNCH</small><b>{row.lunch_collected?"Collected ✓":"Pending"}</b></span><span><small>LANYARD</small><b>{row.lanyard_returned?"Returned ✓":"Pending"}</b></span></div><button className="edit" type="button">Open & check in <span>↗</span></button>
       </article>})}</section>
       {visible.length===0&&<div className="empty"><span>⌕</span><h3>No companies found</h3><p>Try a shorter search term.</p><button onClick={()=>setQuery("")}>Clear search</button></div>}
     </section>
@@ -105,6 +105,7 @@ export default function Home(){
         <label><span>Student number</span><input inputMode="numeric" value={editing.student_number} onChange={e=>setEditing({...editing,student_number:e.target.value})} placeholder="e.g. 12"/></label>
         <label className="check"><input type="checkbox" checked={editing.resume_collected} onChange={e=>setEditing({...editing,resume_collected:e.target.checked})}/><span><b>Resume collected</b><small>Mark this company complete</small></span></label>
         <label className="check"><input type="checkbox" checked={editing.lunch_collected} onChange={e=>setEditing({...editing,lunch_collected:e.target.checked})}/><span><b>Lunch collected</b><small>Tick when the company receives lunch</small></span></label>
+        <label className="check"><input type="checkbox" checked={editing.lanyard_returned} onChange={e=>setEditing({...editing,lanyard_returned:e.target.checked})}/><span><b>Lanyard returned</b><small>Tick when the company returns its lanyard</small></span></label>
         <label className="full"><span>Feedback & notes</span><textarea rows={5} value={editing.feedback} onChange={e=>setEditing({...editing,feedback:e.target.value})} placeholder={"1. Key feedback\n2. Student interests\n3. Follow-up notes"}/></label>
       </div><div className="actions"><button type="button" onClick={()=>setEditing(null)}>Cancel</button><button type="submit"><span>Save update</span><span>→</span></button></div>
       <section className="interaction-history"><div><small>INTERACTION HISTORY</small><h3>All check-ins</h3></div>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).length?<ul>{logs.filter(log=>log.day===editing.day&&log.company===editing.company).map((log,index)=><li key={log.log_id||`${log.timestamp}-${index}`}><span>{log.pic.slice(0,1)}</span><b>{log.pic}</b><time>{log.timestamp}</time>{log.log_id&&<button type="button" onClick={()=>undoLog(log)} aria-label={`Undo ${log.pic} check-in`}>Undo</button>}</li>)}</ul>:<p>No interactions logged yet.</p>}</section>

@@ -14,7 +14,30 @@ const SPONSORS = [
 function setupSheetMetadata() {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
   for (let day = 1; day <= 4; day++) ensureHeaders(getDaySheet(spreadsheet, day));
+  moveCompanyBetweenDays(spreadsheet, "Advanced Semiconductor Academy of Malaysia (ASEM)", 1, 2);
+  moveCompanyBetweenDays(spreadsheet, "IGB Berhad", 1, 4);
+  for (let day = 1; day <= 4; day++) ensureHeaders(getDaySheet(spreadsheet, day));
   ensureLogSheet(spreadsheet);
+}
+
+function moveCompanyBetweenDays(spreadsheet, company, fromDay, toDay) {
+  const source = getDaySheet(spreadsheet, fromDay);
+  const destination = getDaySheet(spreadsheet, toDay);
+  const sourceNames = source.getLastRow() > 1 ? source.getRange(2, 1, source.getLastRow() - 1, 1).getDisplayValues().flat() : [];
+  const sourceIndex = sourceNames.findIndex(name => normalizeCompany(name) === normalizeCompany(company));
+  if (sourceIndex < 0) return;
+  const destinationNames = destination.getLastRow() > 1 ? destination.getRange(2, 1, destination.getLastRow() - 1, 1).getDisplayValues().flat() : [];
+  const destinationIndex = destinationNames.findIndex(name => normalizeCompany(name) === normalizeCompany(company));
+  const sourceRow = source.getRange(sourceIndex + 2, 1, 1, 10).getValues()[0];
+  if (destinationIndex < 0) destination.getRange(destination.getLastRow() + 1, 1, 1, 10).setValues([sourceRow]);
+  source.deleteRow(sourceIndex + 2);
+  const logSheet = spreadsheet.getSheetByName("Interaction Logs");
+  if (logSheet && logSheet.getLastRow() > 1) {
+    const logRows = logSheet.getRange(2, 2, logSheet.getLastRow() - 1, 2).getDisplayValues();
+    logRows.forEach((row, index) => {
+      if (Number(row[0]) === fromDay && normalizeCompany(row[1]) === normalizeCompany(company)) logSheet.getRange(index + 2, 2).setValue(toDay);
+    });
+  }
 }
 
 function doGet() {

@@ -7,9 +7,9 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/1qJZQIpmhnWsTNRzKKJkHq
 
 const companies: Record<number, string[]> = {
   1: ["Tawk Sdn Bhd","bp","Rooftop Energy Tech Sdn Bhd","Shopee","Deloitte","Gamuda Berhad","Nokia Services and Networks Malaysia Sdn Bhd","Ant International","Food Panda","Reactive Energy","Maistorage","SPX Express (Malaysia)","Netizen Testing Sdn Bhd","Core Consulting","KTA Tenaga Sdn Bhd","JJ-Lurgi Engineering Sdn Bhd"],
-  2: ["Tawk Sdn Bhd","bp","Rooftop Energy Tech Sdn Bhd","Inchz IoT Sdn Bhd","AT&S Austria Technologie & Systemtechnik","Deloitte","Ant International","Food Panda","Reactive Energy","Maistorage","Gamuda Berhad","Shortcut Asia","Configura Pacific Sdn Bhd","Juris Technologies Sdn Bhd","Averis","Bio to Business Sdn Bhd","JKS Engineering (M) Sdn Bhd","Advanced Semiconductor Academy of Malaysia (ASEM)"],
-  3: ["Tawk Sdn Bhd","Inchz IoT Sdn Bhd","AT&S Austria Technologie & Systemtechnik","AMD","WD","Chuan Sin Sdn Bhd (Spritzer)","Shortcut Asia","Configura Pacific Sdn Bhd","Juris Technologies Sdn Bhd","Mi Equipment","Alliance Precasr Industries Sdn Bhd","ExxonMobil Business Support Centre Malaysia Sdn Bhd","Solarvest Holdings Berhad (Atlantic Blue Sdn Bhd)","GlobeOSS Sdn Bhd","JKS Engineering (M) Sdn Bhd","Nestle Manufacturing Malaysia","Inno Lab Engineering Sdn Bhd","PwC in Malaysia","Deriv"],
-  4: ["Tawk Sdn Bhd","AMD","WD","Chuan Sin Sdn Bhd (Spritzer)","Shopee","Mi Equipment","Alliance Precasr Industries Sdn Bhd","ExxonMobil Business Support Centre Malaysia Sdn Bhd","Solarvest Holdings Berhad (Atlantic Blue Sdn Bhd)","GlobeOSS Sdn Bhd","Nokia Services and Networks Malaysia Sdn Bhd","Micron Malaysia","Aonic","HSS Engineers Berhad","RIFHAN Teknologi Sdn BHd (Tech D)","Baltimore Aircoil Malaysia Sdn Bhd","SPX Express (Malaysia)","IGB Berhad"],
+  2: ["Advanced Semiconductor Academy of Malaysia (ASEM)","Averis","Bio to Business Sdn. Bhd","bp Malaysia","Inchz IoT Sdn Bhd","Rooftop Energy Tech Sdn Bhd","AT&S Austria Technologie & Systemtechnik","Deloitte","Tawk Sdn Bhd","Gamuda Berhad","Shortcut Asia Sdn. Bhd.","Ant International (AI Asia Services Sdn. Bhd.)","Configura Pacific Sdn Bhd","Juris Technologies Sdn. Bhd.","Food Panda","Reactive Energy","Maistorage","JKS Engineering (M) Sdn Bhd"],
+  3: ["Nestle Manufacturing Malaysia","Inno Lab Engineering Sdn Bhd","PwC in Malaysia","Deriv","bp Malaysia","Inchz IoT Sdn Bhd","Advanced Micro Devices Global Services (M) Sdn. Bhd.","WD","AT&S Austria Technologie & Systemtechnik","Chuan Sin Sdn Bhd (Spritzer)","Tawk Sdn Bhd","Shortcut Asia Sdn. Bhd.","Mi Equipment","Alliance Precast Industries Sdn Bhd","Configura Pacific Sdn Bhd","ExxonMobil Business Support Centre Malaysia Sdn Bhd","Juris Technologies Sdn. Bhd.","Solarvest Holdings Berhad (Atlantic Blue Sdn Bhd)","GlobeOSS Sdn Bhd","JKS Engineering (M) Sdn Bhd"],
+  4: ["Micron Malaysia","Aonic","HSS Engineers Berhad","RIFHAN Teknologi Sdn Bhd (Tech D)","IGB Berhad","Baltimore Aircoil Malaysia Sdn. Bhd.","Advanced Micro Devices Global Services (M) Sdn. Bhd.","WD","Shopee","Chuan Sin Sdn Bhd (Spritzer)","Tawk Sdn Bhd","Nokia Services and Networks Malaysia Sdn Bhd","Ant International (AI Asia Services Sdn. Bhd.)","Mi Equipment","Alliance Precast Industries Sdn Bhd","ExxonMobil Business Support Centre Malaysia Sdn Bhd","Solarvest Holdings Berhad (Atlantic Blue Sdn Bhd)","GlobeOSS Sdn Bhd","SPX Express (Malaysia)"],
 };
 
 const PIC_NAMES = ["Suchir","Daphne","Jet Shen","Thenmolly","Tiraa","Pui Yeng","Jin Hong","Joash","Brandon"];
@@ -21,6 +21,8 @@ const sponsorInfo: Record<string,{tier:string;lead:string}> = {
   "KTA Tenaga Sdn Bhd":{tier:"BRONZE",lead:"Thenmolly"},"JJ-Lurgi Engineering Sdn Bhd":{tier:"BRONZE",lead:"Thenmolly"},"Advanced Semiconductor Academy of Malaysia (ASEM)":{tier:"BRONZE",lead:"Thenmolly"},"Deloitte":{tier:"GOLD",lead:"Thenmolly"},"Reactive Energy":{tier:"SILVER",lead:"Thenmolly"},"JKS Engineering (M) Sdn Bhd":{tier:"TWO DAY BRONZE",lead:"Thenmolly"},"SPX Express (Malaysia)":{tier:"TWO DAY BRONZE",lead:"Thenmolly"},
   "Averis":{tier:"BRONZE",lead:"Tiraa"},"Bio to Business Sdn Bhd":{tier:"BRONZE",lead:"Tiraa"},"IGB Berhad":{tier:"BRONZE",lead:"Tiraa"},"Baltimore Aircoil Malaysia Sdn Bhd":{tier:"BRONZE",lead:"Tiraa"},"Chuan Sin Sdn Bhd (Spritzer)":{tier:"GOLD",lead:"Tiraa"},"Maistorage":{tier:"SILVER",lead:"Tiraa"},"GlobeOSS Sdn Bhd":{tier:"SILVER",lead:"Tiraa"}
 };
+const companyKey=(value:string)=>{const key=value.toLowerCase().replace(/\b(sdn|bhd|berhad|malaysia)\b/g,"").replace(/[^a-z0-9]/g,"").replace("precasr","precast");return key==="amd"||key.startsWith("advancedmicrodevices")?"amd":key};
+const getSponsor=(company:string)=>{const target=companyKey(company);return Object.entries(sponsorInfo).find(([name])=>{const candidate=companyKey(name);return candidate===target||candidate.startsWith(target)||target.startsWith(candidate)})?.[1]};
 
 type RecordRow = {day:number;company:string;student_number:string;resume_collected:boolean;feedback:string;lunch_collected:boolean;lanyard_returned:boolean;tier?:string;assigned_pic?:string;latest_time?:string;latest_pic?:string};
 type InteractionLog = {timestamp:string;day:number;company:string;pic:string;log_id?:string};
@@ -59,7 +61,7 @@ export default function Home(){
     return mapped;
   }
 
-  function openRecord(row:RecordRow){setEditing(row);setCheckInPerson(sponsorInfo[row.company]?.lead||"")}
+  function openRecord(row:RecordRow){setEditing(row);setCheckInPerson(getSponsor(row.company)?.lead||"")}
   async function checkInNow(){
     if(!editing||!checkInPerson)return;
     const timestamp=new Date().toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
@@ -89,7 +91,7 @@ export default function Home(){
 
     <section className="workspace">
       <div className="toolbar"><div><span className="section-kicker">COMPANY ROSTER</span><h2>Day {day} conversations</h2><p>Tap any company card to capture an update.</p></div><label className="search"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search companies" aria-label="Search companies"/>{query&&<button onClick={()=>setQuery("")} type="button" aria-label="Clear search">×</button>}</label></div>
-      <section className="grid">{visible.map((company,i)=>{const row=rows[key(day,company)]||blank(day,company);const touched=!!(row.student_number||row.feedback||row.latest_pic);const sponsor=sponsorInfo[company];return <article key={company} onClick={()=>openRecord(row)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openRecord(row)}}}>
+      <section className="grid">{visible.map((company,i)=>{const row=rows[key(day,company)]||blank(day,company);const touched=!!(row.student_number||row.feedback||row.latest_pic);const sponsor=getSponsor(company);return <article key={company} onClick={()=>openRecord(row)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openRecord(row)}}}>
         <div className="card-top"><span className="number">{String(i+1).padStart(2,"0")}</span><span className={`tier ${(sponsor?.tier||"").toLowerCase().replaceAll(" ","-")}`}>{sponsor?.tier||"PARTNER"}</span></div>
         <h3>{company}</h3><div className="lead-line"><span>Assigned PIC</span><b>{sponsor?.lead||"Unassigned"}</b></div><div className="card-meta"><span><small>RECENT CHECK-IN</small><b>{row.latest_pic||"No check-in"}</b></span><span><small>TIME</small><b>{row.latest_time||"—"}</b></span><span><small>LUNCH</small><b>{row.lunch_collected?"Collected ✓":"Pending"}</b></span><span><small>LANYARD</small><b>{row.lanyard_returned?"Returned ✓":"Pending"}</b></span></div><button className="edit" type="button">Open & check in <span>↗</span></button>
       </article>})}</section>
@@ -98,7 +100,7 @@ export default function Home(){
 
     {editing&&<div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&setEditing(null)}><form className="drawer" onSubmit={e=>{e.preventDefault();save(editing)}}>
       <div className="drawer-head"><div><small>DAY {editing.day} · COMPANY RECORD</small><h2>{editing.company}</h2></div><button type="button" className="close" onClick={()=>setEditing(null)} aria-label="Close form">×</button></div>
-      <div className="company-brief"><span className={`tier ${(sponsorInfo[editing.company]?.tier||"").toLowerCase().replaceAll(" ","-")}`}>{sponsorInfo[editing.company]?.tier||"PARTNER"}</span><p>Assigned lead <b>{sponsorInfo[editing.company]?.lead||"Unassigned"}</b></p></div>
+      <div className="company-brief"><span className={`tier ${(getSponsor(editing.company)?.tier||"").toLowerCase().replaceAll(" ","-")}`}>{getSponsor(editing.company)?.tier||"PARTNER"}</span><p>Assigned lead <b>{getSponsor(editing.company)?.lead||"Unassigned"}</b></p></div>
       <div className="quick-checkin"><div><small>QUICK CHECK-IN</small><b>Who spoke to them now?</b></div><select value={checkInPerson} onChange={e=>setCheckInPerson(e.target.value)} aria-label="PIC checking in"><option value="">Select PIC</option>{PIC_NAMES.map(name=><option key={name}>{name}</option>)}</select><button type="button" onClick={checkInNow} disabled={!checkInPerson}>Check in now</button></div>
       <div className="recent-interaction"><span>Most recent interaction</span><strong>{editing.latest_pic||"No one has checked in yet"}</strong><small>{editing.latest_time||"Waiting for the first conversation"}</small></div>
       <div className="form-grid">

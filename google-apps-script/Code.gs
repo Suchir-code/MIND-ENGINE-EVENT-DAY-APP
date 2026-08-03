@@ -10,33 +10,49 @@ const SPONSORS = [
   ["KTA Tenaga Sdn Bhd","BRONZE","Thenmolly"],["JJ-Lurgi Engineering Sdn Bhd","BRONZE","Thenmolly"],["Advanced Semiconductor Academy of Malaysia (ASEM)","BRONZE","Thenmolly"],["Deloitte","GOLD","Thenmolly"],["Reactive Energy","SILVER","Thenmolly"],["JKS Engineering (M) Sdn Bhd","TWO DAY BRONZE","Thenmolly"],["SPX Express (Malaysia)","TWO DAY BRONZE","Thenmolly"],
   ["Averis","BRONZE","Tiraa"],["Bio to Business Sdn Bhd","BRONZE","Tiraa"],["IGB Berhad","BRONZE","Tiraa"],["Baltimore Aircoil Malaysia Sdn Bhd","BRONZE","Tiraa"],["Chuan Sin Sdn Bhd (Spritzer)","GOLD","Tiraa"],["Maistorage","SILVER","Tiraa"],["GlobeOSS Sdn Bhd","SILVER","Tiraa"]
 ];
+const DAY_ROSTERS = {
+  2: ["Advanced Semiconductor Academy of Malaysia (ASEM)","Averis","Bio to Business Sdn. Bhd","bp Malaysia","Inchz IoT Sdn Bhd","Rooftop Energy Tech Sdn Bhd","AT&S Austria Technologie & Systemtechnik","Deloitte","Tawk Sdn Bhd","Gamuda Berhad","Shortcut Asia Sdn. Bhd.","Ant International (AI Asia Services Sdn. Bhd.)","Configura Pacific Sdn Bhd","Juris Technologies Sdn. Bhd.","Food Panda","Reactive Energy","Maistorage","JKS Engineering (M) Sdn Bhd"],
+  3: ["Nestle Manufacturing Malaysia","Inno Lab Engineering Sdn Bhd","PwC in Malaysia","Deriv","bp Malaysia","Inchz IoT Sdn Bhd","Advanced Micro Devices Global Services (M) Sdn. Bhd.","WD","AT&S Austria Technologie & Systemtechnik","Chuan Sin Sdn Bhd (Spritzer)","Tawk Sdn Bhd","Shortcut Asia Sdn. Bhd.","Mi Equipment","Alliance Precast Industries Sdn Bhd","Configura Pacific Sdn Bhd","ExxonMobil Business Support Centre Malaysia Sdn Bhd","Juris Technologies Sdn. Bhd.","Solarvest Holdings Berhad (Atlantic Blue Sdn Bhd)","GlobeOSS Sdn Bhd","JKS Engineering (M) Sdn Bhd"],
+  4: ["Micron Malaysia","Aonic","HSS Engineers Berhad","RIFHAN Teknologi Sdn Bhd (Tech D)","IGB Berhad","Baltimore Aircoil Malaysia Sdn. Bhd.","Advanced Micro Devices Global Services (M) Sdn. Bhd.","WD","Shopee","Chuan Sin Sdn Bhd (Spritzer)","Tawk Sdn Bhd","Nokia Services and Networks Malaysia Sdn Bhd","Ant International (AI Asia Services Sdn. Bhd.)","Mi Equipment","Alliance Precast Industries Sdn Bhd","ExxonMobil Business Support Centre Malaysia Sdn Bhd","Solarvest Holdings Berhad (Atlantic Blue Sdn Bhd)","GlobeOSS Sdn Bhd","SPX Express (Malaysia)"]
+};
 
 function setupSheetMetadata() {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  for (let day = 1; day <= 4; day++) ensureHeaders(getDaySheet(spreadsheet, day));
-  moveCompanyBetweenDays(spreadsheet, "Advanced Semiconductor Academy of Malaysia (ASEM)", 1, 2);
-  moveCompanyBetweenDays(spreadsheet, "IGB Berhad", 1, 4);
-  for (let day = 1; day <= 4; day++) ensureHeaders(getDaySheet(spreadsheet, day));
+  [2, 3, 4].forEach(day => ensureHeaders(getDaySheet(spreadsheet, day)));
+  [2, 3, 4].forEach(day => syncDayRoster(spreadsheet, day, DAY_ROSTERS[day]));
+  [2, 3, 4].forEach(day => ensureHeaders(getDaySheet(spreadsheet, day)));
   ensureLogSheet(spreadsheet);
 }
 
-function moveCompanyBetweenDays(spreadsheet, company, fromDay, toDay) {
-  const source = getDaySheet(spreadsheet, fromDay);
-  const destination = getDaySheet(spreadsheet, toDay);
-  const sourceNames = source.getLastRow() > 1 ? source.getRange(2, 1, source.getLastRow() - 1, 1).getDisplayValues().flat() : [];
-  const sourceIndex = sourceNames.findIndex(name => normalizeCompany(name) === normalizeCompany(company));
-  if (sourceIndex < 0) return;
-  const destinationNames = destination.getLastRow() > 1 ? destination.getRange(2, 1, destination.getLastRow() - 1, 1).getDisplayValues().flat() : [];
-  const destinationIndex = destinationNames.findIndex(name => normalizeCompany(name) === normalizeCompany(company));
-  const sourceRow = source.getRange(sourceIndex + 2, 1, 1, 10).getValues()[0];
-  if (destinationIndex < 0) destination.getRange(destination.getLastRow() + 1, 1, 1, 10).setValues([sourceRow]);
-  source.deleteRow(sourceIndex + 2);
+function syncDayRoster(spreadsheet, day, roster) {
+  const sheet = getDaySheet(spreadsheet, day);
+  const existingRows = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues().filter(row => String(row[0]).trim()) : [];
+  const used = {};
+  const renames = [];
+  const rows = roster.map(company => {
+    const index = existingRows.findIndex((row, rowIndex) => !used[rowIndex] && companiesMatch(row[0], company));
+    if (index >= 0) {
+      used[index] = true;
+      const row = existingRows[index].slice();
+      if (String(row[0]) !== company) renames.push([String(row[0]), company]);
+      row[0] = company;
+      return row;
+    }
+    const sponsor = findSponsor(company);
+    return [company, "", "No", "", "No", "No", sponsor ? sponsor[1] : "", sponsor ? sponsor[2] : "", "", ""];
+  });
+  const rowsToClear = Math.max(sheet.getLastRow() - 1, roster.length, 1);
+  sheet.getRange(2, 1, rowsToClear, 10).clearContent().clearDataValidations();
+  sheet.getRange(2, 1, rows.length, 10).setValues(rows);
   const logSheet = spreadsheet.getSheetByName("Interaction Logs");
   if (logSheet && logSheet.getLastRow() > 1) {
     const logRows = logSheet.getRange(2, 2, logSheet.getLastRow() - 1, 2).getDisplayValues();
-    logRows.forEach((row, index) => {
-      if (Number(row[0]) === fromDay && normalizeCompany(row[1]) === normalizeCompany(company)) logSheet.getRange(index + 2, 2).setValue(toDay);
+    const updated = logRows.map(row => {
+      if (Number(row[0]) !== day) return row;
+      const rename = renames.find(item => companiesMatch(row[1], item[0]));
+      return rename ? [row[0], rename[1]] : row;
     });
+    logSheet.getRange(2, 2, updated.length, 2).setValues(updated);
   }
 }
 
@@ -121,7 +137,7 @@ function undoCheckIn(logId) {
     if (index < 0) throw new Error("Interaction log not found");
     const removed = values[index];
     logSheet.deleteRow(index + 2);
-    const remaining = values.filter((row, rowIndex) => rowIndex !== index && Number(row[1]) === Number(removed[1]) && normalizeCompany(row[2]) === normalizeCompany(removed[2]));
+    const remaining = values.filter((row, rowIndex) => rowIndex !== index && Number(row[1]) === Number(removed[1]) && companiesMatch(row[2], removed[2]));
     remaining.sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
     const daySheet = getDaySheet(spreadsheet, Number(removed[1]));
     const companyRow = findCompanyRow(daySheet, removed[2]);
@@ -185,7 +201,7 @@ function getDaySheet(spreadsheet, day) {
 }
 function findCompanyRow(sheet, company) {
   const names = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues().flat() : [];
-  const index = names.findIndex(name => normalizeCompany(name) === normalizeCompany(company));
+  const index = names.findIndex(name => companiesMatch(name, company));
   return index >= 0 ? index + 2 : sheet.getLastRow() + 1;
 }
 function findSponsor(company) {
@@ -195,16 +211,25 @@ function findSponsor(company) {
     return candidate === target || candidate.startsWith(target) || target.startsWith(candidate);
   });
 }
-function normalizeCompany(value) { return String(value || "").toLowerCase().replace(/\b(sdn|bhd|berhad)\b/g, "").replace(/[^a-z0-9]/g, ""); }
+function companiesMatch(a, b) {
+  const first = normalizeCompany(a);
+  const second = normalizeCompany(b);
+  return first === second || first.startsWith(second) || second.startsWith(first);
+}
+function normalizeCompany(value) {
+  let normalized = String(value || "").toLowerCase().replace(/\b(sdn|bhd|berhad|malaysia)\b/g, "").replace(/[^a-z0-9]/g, "").replace("precasr", "precast");
+  if (normalized === "amd" || normalized.startsWith("advancedmicrodevices")) normalized = "amd";
+  return normalized;
+}
 function isYes(value) { return ["yes","true","✓","checked"].includes(String(value).toLowerCase()); }
 function withLock(callback) { const lock = LockService.getScriptLock(); lock.waitLock(10000); try { callback(); SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }
 function jsonResponse(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
 
 function repairAndSetup() {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  for (let day = 1; day <= 4; day++) {
+  [2, 3, 4].forEach(day => {
     const sheet = getDaySheet(spreadsheet, day);
     sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 10).clearDataValidations();
-  }
+  });
   setupSheetMetadata();
 }
